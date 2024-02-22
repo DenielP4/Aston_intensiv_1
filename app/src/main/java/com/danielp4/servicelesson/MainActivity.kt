@@ -40,6 +40,10 @@ class MainActivity : AppCompatActivity(), MusicService.MusicServiceCallback {
         bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
         binding.apply {
             val intent = Intent(this@MainActivity, MusicService::class.java)
+            Intent(intent).also {
+                it.action = MusicService.Actions.START.toString()
+                startService(it)
+            }
             bStart.setOnClickListener {
                 Intent(intent).also {
                     it.action = MusicService.Actions.PLAY.toString()

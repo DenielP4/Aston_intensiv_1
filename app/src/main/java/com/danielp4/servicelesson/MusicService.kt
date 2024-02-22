@@ -1,10 +1,17 @@
 package com.danielp4.servicelesson
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
 
 
 class MusicService : Service() {
@@ -16,6 +23,7 @@ class MusicService : Service() {
     private var isPaused: Boolean = false
     private var callback: MusicServiceCallback? = null
     private val binder = MusicBinder()
+    private lateinit var notificationManager: NotificationManager
 
     interface MusicServiceCallback {
         fun onSongChanged(songName: String)
@@ -25,9 +33,21 @@ class MusicService : Service() {
         this.callback = callback
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "music_channel",
+                "Music Channel",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
+        createNotificationChannel()
         musicList = mutableListOf(
             R.raw.spasibo__kloun,
             R.raw.discord__call_sound,
@@ -44,6 +64,7 @@ class MusicService : Service() {
             next()
             sendCurrentSong()
         }
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
 
     inner class MusicBinder : Binder() {
@@ -52,6 +73,7 @@ class MusicService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when(intent?.action) {
+            Actions.START.toString() -> start()
             Actions.PLAY.toString() -> play()
             Actions.STOP.toString() -> stop()
             Actions.NEXT.toString() -> next()
@@ -59,6 +81,43 @@ class MusicService : Service() {
         }
         sendCurrentSong()
         return START_STICKY
+    }
+    private fun start() {
+        val notification = createNotification()
+        startForeground(1, notification)
+    }
+
+    private fun createNotification(): Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE)
+
+        val previousIntent = Intent(this, MusicService::class.java)
+        previousIntent.action = Actions.PREVIOUS.name
+        val previousPendingIntent = PendingIntent.getService(this, 0, previousIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val playIntent = Intent(this, MusicService::class.java)
+        playIntent.action = Actions.PLAY.name
+        val playPendingIntent = PendingIntent.getService(this, 0, playIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val stopIntent = Intent(this, MusicService::class.java)
+        stopIntent.action = Actions.STOP.name
+        val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val nextIntent = Intent(this, MusicService::class.java)
+        nextIntent.action = Actions.NEXT.name
+        val nextPendingIntent = PendingIntent.getService(this, 0, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+
+        return NotificationCompat.Builder(this, "music_channel")
+            .setContentTitle("Радиоволна Country Rock")
+            .setContentText("Сейчас в Ваших ушках: ${currentSound()}")
+            .setSmallIcon(R.drawable.ic_music_note)
+            .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_skip_previous, "Previous", previousPendingIntent)
+            .addAction(R.drawable.ic_play_arrow, "Play", playPendingIntent)
+            .addAction(R.drawable.ic_skip_next, "Next", nextPendingIntent)
+            .addAction(R.drawable.ic_stop, "Stop", stopPendingIntent)
+            .build()
     }
 
     private fun play() {
@@ -69,6 +128,8 @@ class MusicService : Service() {
         } else {
             player.start()
         }
+        val notification = createNotification()
+        notificationManager.notify(1, notification)
     }
 
     private fun stop() {
@@ -77,6 +138,8 @@ class MusicService : Service() {
             pausedPosition = player.currentPosition
             isPaused = true
         }
+        val notification = createNotification()
+        notificationManager.notify(1, notification)
     }
 
     private fun next() {
@@ -96,6 +159,8 @@ class MusicService : Service() {
             next()
             sendCurrentSong()
         }
+        val notification = createNotification()
+        notificationManager.notify(1, notification)
     }
 
     private fun previous() {
@@ -109,11 +174,13 @@ class MusicService : Service() {
         player.start()
     }
 
+    fun currentSound(): String {
+        return formatterSong(musicList[currentMusic]).toMusicName()
+    }
+
     private fun sendCurrentSong(): String {
-        val fullNameSong = formatterSong(musicList[currentMusic])
-        val songName = fullNameSong.toMusicName()
-        callback?.onSongChanged(songName)
-        return songName
+        callback?.onSongChanged(currentSound())
+        return currentSound()
     }
 
     private fun formatterSong(song: Int): SongName {
@@ -139,7 +206,7 @@ class MusicService : Service() {
     }
 
     enum class Actions {
-        PLAY, STOP, NEXT, PREVIOUS
+        PLAY, STOP, NEXT, PREVIOUS, START
     }
 }
 
