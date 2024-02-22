@@ -11,6 +11,7 @@ import android.media.MediaPlayer
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 
@@ -25,6 +26,7 @@ class MusicService : Service() {
     private val binder = MusicBinder()
     private lateinit var notificationManager: NotificationManager
 
+
     interface MusicServiceCallback {
         fun onSongChanged(songName: String)
     }
@@ -36,7 +38,7 @@ class MusicService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "music_channel",
+                "channel",
                 "Music Channel",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
@@ -72,19 +74,20 @@ class MusicService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+
         when(intent?.action) {
-            Actions.START.toString() -> start()
+            Actions.STOP_F.toString() -> stopF()
             Actions.PLAY.toString() -> play()
             Actions.STOP.toString() -> stop()
             Actions.NEXT.toString() -> next()
             Actions.PREVIOUS.toString() -> previous()
         }
         sendCurrentSong()
-        return START_STICKY
+        return START_NOT_STICKY
     }
-    private fun start() {
-        val notification = createNotification()
-        startForeground(1, notification)
+
+    private fun stopF() {
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     private fun createNotification(): Notification {
@@ -108,28 +111,31 @@ class MusicService : Service() {
         nextIntent.action = Actions.NEXT.name
         val nextPendingIntent = PendingIntent.getService(this, 0, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT)
 
-        return NotificationCompat.Builder(this, "music_channel")
+        return NotificationCompat.Builder(this, "channel")
             .setContentTitle("Радиоволна Country Rock")
             .setContentText("Сейчас в Ваших ушках: ${currentSound()}")
             .setSmallIcon(R.drawable.ic_music_note)
             .setContentIntent(pendingIntent)
+            .setSound(null)
             .addAction(R.drawable.ic_skip_previous, "Previous", previousPendingIntent)
-            .addAction(R.drawable.ic_play_arrow, "Play", playPendingIntent)
-            .addAction(R.drawable.ic_skip_next, "Next", nextPendingIntent)
             .addAction(R.drawable.ic_stop, "Stop", stopPendingIntent)
+            .addAction(R.drawable.ic_skip_next, "Next", nextPendingIntent)
             .build()
+
     }
 
     private fun play() {
+
         if (!player.isPlaying && isPaused) {
             player.seekTo(pausedPosition)
             player.start()
             isPaused = false
         } else {
             player.start()
+            val notification = createNotification()
+            startForeground(1, notification)
+            notificationManager.notify(1, notification)
         }
-        val notification = createNotification()
-        notificationManager.notify(1, notification)
     }
 
     private fun stop() {
@@ -206,7 +212,7 @@ class MusicService : Service() {
     }
 
     enum class Actions {
-        PLAY, STOP, NEXT, PREVIOUS, START
+        PLAY, STOP, NEXT, PREVIOUS, START_F, STOP_F
     }
 }
 
