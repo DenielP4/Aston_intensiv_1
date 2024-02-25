@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity(), MusicService.MusicServiceCallback {
         val intent = Intent(this@MainActivity, MusicService::class.java)
         Intent(intent).also {
             it.action = MusicService.Actions.STOP_F.toString()
+            stopService(it)
         }
     }
 
